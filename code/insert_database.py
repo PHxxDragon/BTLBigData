@@ -5,21 +5,29 @@ from collections import namedtuple
 
 DATA_FILE_PATH = "2023-10-30-15.json"
 
+
 MONGODB_URL = "mongodb://localhost:27017/"
 MONGO_DATABASE_NAME = "ghArchiveDB"
 MONGO_COLLECTION_NAME = "ghlogs"
+
 
 MYSQL_HOST = "localhost"
 MYSQL_PORT = 3306
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "mysql"
 MYSQL_DATABASE_NAME = "ghArchiveDB"
+
 MYSQL_TABLE_USER_NAME = "gh_user"
-MYSQL_TABLE_REPO_NAME = "gh_repo"
 TABLE_USER_SCHEMA = namedtuple("TableUserColumns", ["id", "login", "display_login", "gravatar_id", "url", "avatar_url"])
 MYSQL_TABLE_USER_COLS = TABLE_USER_SCHEMA("ID", "LOGIN", "DISPLAY_LOGIN", "GRAVATAR_ID", "URL", "AVATAR_URL")
-TABLE_REPO_SCHEMA = namedtuple("TableRepoColumns", ["id", "name", "url"])
-MYSQL_TABLE_REPO_COLS = TABLE_REPO_SCHEMA("ID", "NAME", "URL")
+USER_CREATE_SQL = f"""CREATE TABLE {MYSQL_TABLE_USER_NAME} (
+    {MYSQL_TABLE_USER_COLS.id} VARCHAR(40) PRIMARY KEY,
+    {MYSQL_TABLE_USER_COLS.login} VARCHAR(100),
+    {MYSQL_TABLE_USER_COLS.display_login} VARCHAR(100),
+    {MYSQL_TABLE_USER_COLS.avatar_url} VARCHAR(1000),
+    {MYSQL_TABLE_USER_COLS.gravatar_id} VARCHAR(100),
+    {MYSQL_TABLE_USER_COLS.url} VARCHAR(1000)
+)"""
 USER_INSERT_SQL = f"""INSERT INTO {MYSQL_TABLE_USER_NAME} (
     {MYSQL_TABLE_USER_COLS.id}, 
     {MYSQL_TABLE_USER_COLS.login},
@@ -27,12 +35,47 @@ USER_INSERT_SQL = f"""INSERT INTO {MYSQL_TABLE_USER_NAME} (
     {MYSQL_TABLE_USER_COLS.avatar_url},
     {MYSQL_TABLE_USER_COLS.gravatar_id},
     {MYSQL_TABLE_USER_COLS.url}
-) VALUES (%s, %s, %s, %s, %s, %s)"""
+) VALUES (%s, %s, %s, %s, %s, %s) 
+ON DUPLICATE KEY UPDATE
+    {MYSQL_TABLE_USER_COLS.id}={MYSQL_TABLE_USER_COLS.id}
+"""
+
+MYSQL_TABLE_REPO_NAME = "gh_repo"
+TABLE_REPO_SCHEMA = namedtuple("TableRepoColumns", ["id", "name", "url"])
+MYSQL_TABLE_REPO_COLS = TABLE_REPO_SCHEMA("ID", "NAME", "URL")
+REPO_CREATE_SQL = f"""CREATE TABLE {MYSQL_TABLE_REPO_NAME} (
+    {MYSQL_TABLE_REPO_COLS.id} VARCHAR(40) PRIMARY KEY,
+    {MYSQL_TABLE_REPO_COLS.name} VARCHAR(1000),
+    {MYSQL_TABLE_REPO_COLS.url} VARCHAR(1000)     
+)"""
 REPO_INSERT_SQL = f"""INSERT INTO {MYSQL_TABLE_REPO_NAME} (
     {MYSQL_TABLE_REPO_COLS.id}, 
     {MYSQL_TABLE_REPO_COLS.name},
     {MYSQL_TABLE_REPO_COLS.url}
-) VALUES (%s, %s, %s)"""
+) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE
+    {MYSQL_TABLE_REPO_COLS.id}={MYSQL_TABLE_REPO_COLS.id}
+"""
+
+MYSQL_TABLE_ORG_NAME = "gh_org"
+TABLE_ORG_SCHEMA = namedtuple("TableOrgColumns", ["id", "login", "gravatar_id", "url", "avatar_url"])
+MYSQL_TABLE_ORG_COLS = TABLE_ORG_SCHEMA("ID", "LOGIN", "GRAVATAR_ID", "URL", "AVATAR_URL")
+ORG_CREATE_SQL = f"""CREATE TABLE {MYSQL_TABLE_ORG_NAME} (
+    {MYSQL_TABLE_ORG_COLS.id} VARCHAR(40) PRIMARY KEY,
+    {MYSQL_TABLE_ORG_COLS.login} VARCHAR(100),
+    {MYSQL_TABLE_ORG_COLS.avatar_url} VARCHAR(1000),
+    {MYSQL_TABLE_ORG_COLS.gravatar_id} VARCHAR(100),
+    {MYSQL_TABLE_ORG_COLS.url} VARCHAR(1000)     
+)"""
+ORG_INSERT_SQL = f"""INSERT INTO {MYSQL_TABLE_ORG_NAME} (
+    {MYSQL_TABLE_ORG_COLS.id}, 
+    {MYSQL_TABLE_ORG_COLS.login},
+    {MYSQL_TABLE_ORG_COLS.gravatar_id},
+    {MYSQL_TABLE_ORG_COLS.url},
+    {MYSQL_TABLE_ORG_COLS.avatar_url}
+) VALUES (%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE
+    {MYSQL_TABLE_ORG_COLS.id}={MYSQL_TABLE_ORG_COLS.id}
+"""
+
 
 def test_print_json(input_json) -> None:
     print(json.dumps(input_json, indent=4))
@@ -44,36 +87,40 @@ class MySQLImporter:
         self.cursor.execute(f"DROP DATABASE IF EXISTS {MYSQL_DATABASE_NAME}")
         self.cursor.execute(f"CREATE DATABASE {MYSQL_DATABASE_NAME}")
         self.cursor.execute(f"USE {MYSQL_DATABASE_NAME}")
-        self.cursor.execute(f"""CREATE TABLE {MYSQL_TABLE_USER_NAME} (
-            {MYSQL_TABLE_USER_COLS.id} VARCHAR(40),
-            {MYSQL_TABLE_USER_COLS.login} VARCHAR(100),
-            {MYSQL_TABLE_USER_COLS.display_login} VARCHAR(100),
-            {MYSQL_TABLE_USER_COLS.avatar_url} VARCHAR(1000),
-            {MYSQL_TABLE_USER_COLS.gravatar_id} VARCHAR(100),
-            {MYSQL_TABLE_USER_COLS.url} VARCHAR(1000)
-        )""")
-        self.cursor.execute(f"""CREATE TABLE {MYSQL_TABLE_REPO_NAME} (
-            {MYSQL_TABLE_REPO_COLS.id} VARCHAR(40),
-            {MYSQL_TABLE_REPO_COLS.name} VARCHAR(1000),
-            {MYSQL_TABLE_REPO_COLS.url} VARCHAR(1000)     
-        )""")
+        self.cursor.execute(USER_CREATE_SQL)
+        self.cursor.execute(REPO_CREATE_SQL)
+        self.cursor.execute(ORG_CREATE_SQL)
 
     def insert_json(self, input_json) -> None:
+        actor_key = "actor"
         user_values = (
-            input_json["actor"]["id"],
-            input_json["actor"]["login"],
-            input_json["actor"]["display_login"],
-            input_json["actor"]["avatar_url"],
-            input_json["actor"]["gravatar_id"],
-            input_json["actor"]["url"]
+            input_json[actor_key]["id"],
+            input_json[actor_key]["login"],
+            input_json[actor_key]["display_login"],
+            input_json[actor_key]["avatar_url"],
+            input_json[actor_key]["gravatar_id"],
+            input_json[actor_key]["url"]
         )
         self.cursor.execute(USER_INSERT_SQL, user_values)
+
+        repo_key = "repo"
         repo_values = (
-            input_json["repo"]["id"],
-            input_json["repo"]["name"],
-            input_json["repo"]["url"]
+            input_json[repo_key]["id"],
+            input_json[repo_key]["name"],
+            input_json[repo_key]["url"]
         )
         self.cursor.execute(REPO_INSERT_SQL, repo_values)
+
+        org_key = "org"
+        if (org_key in input_json):
+            org_values = (
+                input_json[org_key]["id"],
+                input_json[org_key]["login"],
+                input_json[org_key]["avatar_url"],
+                input_json[org_key]["gravatar_id"],
+                input_json[org_key]["url"]
+            )
+            self.cursor.execute(ORG_INSERT_SQL, org_values)
 
 
 class MongoDBImporter:
@@ -95,6 +142,8 @@ class MongoDBImporter:
     def _preprocess_mongodb(self, input_json):
         input_json["actor"] = input_json["actor"]["id"]
         input_json["repo"] = input_json["repo"]["id"]
+        if ("org" in input_json):
+            input_json["org"] = input_json["org"]["id"]
         return input_json
 
     def _insert_to_mongodb(self, data_json) -> None:
