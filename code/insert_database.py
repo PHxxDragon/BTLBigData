@@ -90,6 +90,7 @@ class MySQLImporter:
         self.cursor.execute(USER_CREATE_SQL)
         self.cursor.execute(REPO_CREATE_SQL)
         self.cursor.execute(ORG_CREATE_SQL)
+        self.count = 0
 
     def insert_json(self, input_json) -> None:
         actor_key = "actor"
@@ -121,12 +122,24 @@ class MySQLImporter:
                 input_json[org_key]["url"]
             )
             self.cursor.execute(ORG_INSERT_SQL, org_values)
+        
+        self.count = self.count + 1
+        if (self.count > 100):
+            self.flush()
+            self.count = 0
+
+    def flush(self) -> None:
+        self.connector.commit()
+
+    def close(self) -> None:
+        self.cursor.close()
+        self.connector.close()
 
 
 class MongoDBImporter:
     def __init__(self) -> None:
-        client = pymongo.MongoClient(MONGODB_URL)
-        gh_database = client[MONGO_DATABASE_NAME]
+        self.client = pymongo.MongoClient(MONGODB_URL)
+        gh_database = self.client[MONGO_DATABASE_NAME]
         self.gh_collection = gh_database[MONGO_COLLECTION_NAME]
         self.gh_collection.drop()
         self.pending_rows = []
@@ -138,6 +151,10 @@ class MongoDBImporter:
     def flush(self) -> None:
         self.gh_collection.insert_many(self.pending_rows)
         self.pending_rows.clear()
+    
+    def close(self) -> None:
+        self.flush()
+        self.client.close()
 
     def _preprocess_mongodb(self, input_json):
         input_json["actor"] = input_json["actor"]["id"]
@@ -155,10 +172,15 @@ def main() -> None:
     data_file = open(DATA_FILE_PATH, 'r')
     mongodb_importer = MongoDBImporter()
     mysql_importer = MySQLImporter()
+    n = 0
     for line in data_file.readlines():
+        n = n + 1
         mongodb_importer.insert_json(json.loads(line))
         mysql_importer.insert_json(json.loads(line))
-    mongodb_importer.flush()
+        if (n % 1000 == 0):
+            print(f"Processed line {n}")
+    mongodb_importer.close()
+    mysql_importer.close()
 
 if __name__ == "__main__":
     main()
