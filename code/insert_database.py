@@ -7,7 +7,7 @@ DATA_FILE_PATH = "2023-10-30-15.json"
 
 
 MONGODB_URL = "mongodb://localhost:27017/"
-MONGO_DATABASE_NAME = "ghArchiveDB"
+MONGO_DATABASE_NAME = "gharchivedb"
 MONGO_COLLECTION_NAME = "ghlogs"
 
 
@@ -15,11 +15,11 @@ MYSQL_HOST = "localhost"
 MYSQL_PORT = 3306
 MYSQL_USER = "root"
 MYSQL_PASSWORD = "mysql"
-MYSQL_DATABASE_NAME = "ghArchiveDB"
+MYSQL_DATABASE_NAME = "gharchivedb"
 
 MYSQL_TABLE_USER_NAME = "gh_user"
 TABLE_USER_SCHEMA = namedtuple("TableUserColumns", ["id", "login", "display_login", "gravatar_id", "url", "avatar_url"])
-MYSQL_TABLE_USER_COLS = TABLE_USER_SCHEMA("ID", "LOGIN", "DISPLAY_LOGIN", "GRAVATAR_ID", "URL", "AVATAR_URL")
+MYSQL_TABLE_USER_COLS = TABLE_USER_SCHEMA("id", "login", "display_login", "gravatar_id", "url", "avatar_url")
 USER_CREATE_SQL = f"""CREATE TABLE {MYSQL_TABLE_USER_NAME} (
     {MYSQL_TABLE_USER_COLS.id} VARCHAR(40) PRIMARY KEY,
     {MYSQL_TABLE_USER_COLS.login} VARCHAR(100),
@@ -42,7 +42,7 @@ ON DUPLICATE KEY UPDATE
 
 MYSQL_TABLE_REPO_NAME = "gh_repo"
 TABLE_REPO_SCHEMA = namedtuple("TableRepoColumns", ["id", "name", "url"])
-MYSQL_TABLE_REPO_COLS = TABLE_REPO_SCHEMA("ID", "NAME", "URL")
+MYSQL_TABLE_REPO_COLS = TABLE_REPO_SCHEMA("id", "name", "url")
 REPO_CREATE_SQL = f"""CREATE TABLE {MYSQL_TABLE_REPO_NAME} (
     {MYSQL_TABLE_REPO_COLS.id} VARCHAR(40) PRIMARY KEY,
     {MYSQL_TABLE_REPO_COLS.name} VARCHAR(1000),
@@ -58,7 +58,7 @@ REPO_INSERT_SQL = f"""INSERT INTO {MYSQL_TABLE_REPO_NAME} (
 
 MYSQL_TABLE_ORG_NAME = "gh_org"
 TABLE_ORG_SCHEMA = namedtuple("TableOrgColumns", ["id", "login", "gravatar_id", "url", "avatar_url"])
-MYSQL_TABLE_ORG_COLS = TABLE_ORG_SCHEMA("ID", "LOGIN", "GRAVATAR_ID", "URL", "AVATAR_URL")
+MYSQL_TABLE_ORG_COLS = TABLE_ORG_SCHEMA("id", "login", "gravatar_id", "url", "avatar_url")
 ORG_CREATE_SQL = f"""CREATE TABLE {MYSQL_TABLE_ORG_NAME} (
     {MYSQL_TABLE_ORG_COLS.id} VARCHAR(40) PRIMARY KEY,
     {MYSQL_TABLE_ORG_COLS.login} VARCHAR(100),
