@@ -124,7 +124,7 @@ class MySQLImporter:
             self.cursor.execute(ORG_INSERT_SQL, org_values)
         
         self.count = self.count + 1
-        if (self.count > 100):
+        if (self.count > 1000):
             self.flush()
             self.count = 0
 
@@ -139,21 +139,19 @@ class MySQLImporter:
 class MongoDBImporter:
     def __init__(self) -> None:
         self.client = pymongo.MongoClient(MONGODB_URL)
-        gh_database = self.client[MONGO_DATABASE_NAME]
-        self.gh_collection = gh_database[MONGO_COLLECTION_NAME]
-        self.gh_collection.drop()
-        self.pending_rows = []
+        self.gh_database = self.client[MONGO_DATABASE_NAME]
+        for name in self.gh_database.list_collection_names():
+            self.gh_database[name].drop()
+        self.pending_rows: dict[str, list[str]] = dict()
 
     def insert_json(self, input_json) -> None:
         processed_json = self._preprocess_mongodb(input_json)
         self._insert_to_mongodb(processed_json)
 
-    def flush(self) -> None:
-        self.gh_collection.insert_many(self.pending_rows)
-        self.pending_rows.clear()
-    
     def close(self) -> None:
-        self.flush()
+        for key, value in self.pending_rows.items():
+            self.gh_database[key].insert_many(value)
+        self.pending_rows = dict()
         self.client.close()
 
     def _preprocess_mongodb(self, input_json):
@@ -164,9 +162,19 @@ class MongoDBImporter:
         return input_json
 
     def _insert_to_mongodb(self, data_json) -> None:
-        self.pending_rows.append(data_json)
-        if (len(self.pending_rows) > 1000):
-            self.flush()
+        collection_name = MONGO_COLLECTION_NAME
+        if ("type" in data_json):
+            collection_name += data_json["type"].lower()
+        if ("payload" in data_json and "action" in data_json["payload"]):
+            collection_name += data_json["payload"]["action"].lower()
+
+        if (collection_name not in self.pending_rows):
+            self.pending_rows[collection_name] = []
+        
+        self.pending_rows[collection_name].append(data_json)
+        if (len(self.pending_rows[collection_name]) > 1000):
+            self.gh_database[collection_name].insert_many(self.pending_rows[collection_name])
+            self.pending_rows[collection_name] = []
 
 def main() -> None:
     data_file = open(DATA_FILE_PATH, 'r')
